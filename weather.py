@@ -17,7 +17,7 @@ ukrainian_days = {
 def get_weather(city):
     print(colored(f"\nПрогноз погоди для: {city.capitalize()}\n", 'cyan'))
 
-    
+   
     geo_url = f"https://nominatim.openstreetmap.org/search?city={city}&country=Україна&format=json"
     headers = {'User-Agent': 'weather-termux-script'}
     try:
@@ -25,16 +25,16 @@ def get_weather(city):
         response.raise_for_status()
     except Exception as e:
         print(colored(f"Помилка під час отримання координат: {e}", 'red'))
-        return
+        return False
 
     data = response.json()
     if not data:
         print(colored("Місто не знайдено або введено некоректно.", 'red'))
-        return
+        return False
 
     lat, lon = data[0]['lat'], data[0]['lon']
 
-   
+    
     weather_url = (
         f"https://api.open-meteo.com/v1/forecast"
         f"?latitude={lat}&longitude={lon}"
@@ -46,7 +46,7 @@ def get_weather(city):
         wres.raise_for_status()
     except Exception as e:
         print(colored(f"Помилка під час отримання погоди: {e}", 'red'))
-        return
+        return False
 
     wdata = wres.json()
     days = wdata['daily']['time']
@@ -56,7 +56,7 @@ def get_weather(city):
 
    
     table = []
-    for i in range(len(days)):
+    for i in reversed(range(len(days))):
         date_obj = datetime.strptime(days[i], "%Y-%m-%d")
         eng_day = date_obj.strftime('%A')
         ukr_day = ukrainian_days.get(eng_day, eng_day)
@@ -76,12 +76,29 @@ def get_weather(city):
     ]
 
     print(tabulate(table, headers=headers, tablefmt="grid"))
+    return True
+
+
+def main():
+    print(colored("\n=== Прогноз погоди ===", 'magenta', attrs=['bold']))
+    while True:
+        city = input("\nВведіть назву міста українською (або 'вихід' для завершення): ").strip()
+        if city.lower() in ['вихід', 'exit', 'quit']:
+            print(colored("Дякую, до побачення!", 'cyan'))
+            break
+        if not city:
+            print(colored("Назва міста не може бути порожньою.", 'red'))
+            continue
+        success = get_weather(city)
+        if success:
+            
+            again = input("\nБажаєте подивитись погоду для іншого міста? (так/ні): ").strip().lower()
+            if again not in ['так', 'yes', 'y']:
+                print(colored("Дякую, до побачення!", 'cyan'))
+                break
+        else:
+            print(colored("Спробуйте ввести місто ще раз.", 'yellow'))
 
 
 if __name__ == '__main__':
-    print(colored("\n=== Прогноз погоди ===", 'magenta', attrs=['bold']))
-    city = input("Введіть назву міста українською: ").strip()
-    if city:
-        get_weather(city)
-    else:
-        print(colored("Назва міста не може бути порожньою.", 'red'))
+    main()
