@@ -1,31 +1,34 @@
 import requests
-from bs4 import BeautifulSoup
+from termcolor import colored
 
 def get_weather(city):
-    url = f'https://sinoptik.ua/погода-{city.lower()}'
-    headers = {
-        'User-Agent': 'Mozilla/5.0'
-    }
-    response = requests.get(url, headers=headers)
-
-    if response.status_code != 200:
-        print(f"❌ Не вдалося отримати дані для міста '{city}'.")
+    # Геокодування міста для отримання координат
+    geocode_url = f"https://geocode.maps.co/search?q={city},Ukraine&format=json"
+    response = requests.get(geocode_url)
+    if response.status_code != 200 or not response.json():
+        print(colored(f"Не вдалося знайти місто: {city}", 'red'))
         return
 
-    soup = BeautifulSoup(response.text, 'html.parser')
-    temp_tag = soup.select_one('.today-temp .today-temp__value')
-    descr_tag = soup.select_one('.today-temp .today-temp__descr')
+    location = response.json()[0]
+    lat, lon = location['lat'], location['lon']
 
-    if temp_tag and descr_tag:
-        temperature = temp_tag.text.strip()
-        description = descr_tag.text.strip()
-        print(f"\n🌤️ Погода в місті {city.capitalize()}:")
-        print(f"🌡️ Температура: {temperature}")
-        print(f"📋 Опис: {description}\n")
-    else:
-        print(f"⚠️ Інформацію не знайдено. Можливо, місто '{city}' недоступне.")
+    # Запит до Open-Meteo API для прогнозу на 7 днів
+    weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=celsius&precipitation_unit=mm&timezone=Europe/Kiev"
+    weather_response = requests.get(weather_url)
+    if weather_response.status_code != 200:
+        print(colored("Помилка при отриманні даних про погоду.", 'red'))
+        return
+
+    weather_data = weather_response.json()
+    print(colored(f"\nПрогноз погоди на 7 днів для міста {city.capitalize()}:", 'cyan'))
+    for i, day in enumerate(weather_data['daily']['time']):
+        date = day
+        max_temp = weather_data['daily']['temperature_2m_max'][i]
+        min_temp = weather_data['daily']['temperature_2m_min'][i]
+        precip = weather_data['daily']['precipitation_sum'][i]
+        print(colored(f"{date}: Макс. {max_temp}°C, Мін. {min_temp}°C, Опади: {precip} мм", 'green'))
 
 if __name__ == '__main__':
-    print("=== 🌦️ Погодний скрипт для Termux ===")
-    city = input("🔎 Введіть назву міста українською: ")
+    print(colored("🌤️ Погодний скрипт для Termux", 'yellow'))
+    city = input("Введіть назву міста: ")
     get_weather(city)
