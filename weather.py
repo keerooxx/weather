@@ -9,7 +9,7 @@ ukrainian_days = {
     'Tuesday': 'Вівторок',
     'Wednesday': 'Середа',
     'Thursday': 'Четвер',
-    'Friday': 'Пʼятниця',
+    'Friday': "Пʼятниця",
     'Saturday': 'Субота',
     'Sunday': 'Неділя'
 }
@@ -17,26 +17,35 @@ ukrainian_days = {
 def get_weather(city):
     print(colored(f"\nПрогноз погоди для: {city.capitalize()}\n", 'cyan'))
 
-
-    geo_url = f"https://geocode.maps.co/search?q={city},Ukraine&format=json"
-    response = requests.get(geo_url)
-    if response.status_code != 200 or not response.json():
-        print(colored("Місто не знайдено.", 'red'))
+    
+    geo_url = f"https://nominatim.openstreetmap.org/search?city={city}&country=Україна&format=json"
+    headers = {'User-Agent': 'weather-termux-script'}
+    try:
+        response = requests.get(geo_url, headers=headers, timeout=10)
+        response.raise_for_status()
+    except Exception as e:
+        print(colored(f"Помилка під час отримання координат: {e}", 'red'))
         return
 
-    data = response.json()[0]
-    lat, lon = data['lat'], data['lon']
+    data = response.json()
+    if not data:
+        print(colored("Місто не знайдено або введено некоректно.", 'red'))
+        return
 
-    
+    lat, lon = data[0]['lat'], data[0]['lon']
+
+   
     weather_url = (
         f"https://api.open-meteo.com/v1/forecast"
-        f"?latitude={lat}&longitude={lon}&daily=temperature_2m_max,"
-        f"temperature_2m_min,precipitation_sum&temperature_unit=celsius"
-        f"&precipitation_unit=mm&timezone=Europe/Kiev"
+        f"?latitude={lat}&longitude={lon}"
+        f"&daily=temperature_2m_max,temperature_2m_min,precipitation_sum"
+        f"&temperature_unit=celsius&precipitation_unit=mm&timezone=Europe/Kiev"
     )
-    wres = requests.get(weather_url)
-    if wres.status_code != 200:
-        print(colored("Помилка при отриманні даних про погоду.", 'red'))
+    try:
+        wres = requests.get(weather_url, timeout=10)
+        wres.raise_for_status()
+    except Exception as e:
+        print(colored(f"Помилка під час отримання погоди: {e}", 'red'))
         return
 
     wdata = wres.json()
@@ -68,7 +77,11 @@ def get_weather(city):
 
     print(tabulate(table, headers=headers, tablefmt="grid"))
 
+
 if __name__ == '__main__':
     print(colored("\n=== Прогноз погоди ===", 'magenta', attrs=['bold']))
-    city = input("Введіть назву міста українською: ")
-    get_weather(city)
+    city = input("Введіть назву міста українською: ").strip()
+    if city:
+        get_weather(city)
+    else:
+        print(colored("Назва міста не може бути порожньою.", 'red'))
