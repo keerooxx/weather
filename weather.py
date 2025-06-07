@@ -2,60 +2,133 @@
 import os
 import sys
 import requests
-from urllib.parse import quote
+import re
+import subprocess
+from datetime import datetime
+from bs4 import BeautifulSoup
+
+
+REPO_URL = "https://raw.githubusercontent.com/keerooxx/weather/main/weather.py"
+UPDATE_INTERVAL = 86400  
+
+def check_update():
+    """Перевіряє наявність оновлень на GitHub"""
+    try:
+
+        local_mtime = os.path.getmtime(__file__) if os.path.exists(__file__) else 0
+        
+        if (datetime.now().timestamp() - local_mtime) > UPDATE_INTERVAL:
+            print("\033[1;33mПеревірка оновлень...\033[0m")
+            response = requests.head(REPO_URL)
+            remote_size = int(response.headers.get('Content-Length', 0))
+
+         
+            local_size = os.path.getsize(__file__) if os.path.exists(__file__) else 0
+            if remote_size != local_size:
+                print("\033[1;32mЗнайдено оновлення! Завантаження...\033[0m")
+                new_script = requests.get(REPO_URL).text
+                
+                with open(__file__, 'w') as f:
+                    f.write(new_script)
+                
+                print("\033[1;32mОновлено успішно! Перезапуск...\033[0m")
+                os.execl(sys.executable, sys.executable, *sys.argv)
+    
+    except Exception as e:
+        print(f"\033[1;31mПомилка оновлення: {str(e)}\033[0m")
+
+def get_weather(city):
+    """Отримує погоду з sinoptik.ua"""
+    try:
+      
+        search_url = f"https://sinoptik.ua/поиск?q={city}"
+        response = requests.get(search_url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+       
+        first_result = soup.find('div', class_='searchBlock')
+        if not first_result:
+            return "Місто не знайдено"
+            
+        city_link = first_result.find('a')['href']
+        city_id = city_link.split('/')[-1]
+        
+       
+        weather_url = f"https://sinoptik.ua{city_link}"
+        response = requests.get(weather_url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+       
+        today = soup.find('div', class_='main loaded')
+        temperature = today.find('p', class_='today-temp').text.strip()
+        description = today.find('div', class_='description').text.strip()
+        
+       
+        details = today.find('div', class_='weatherDetails')
+        params = [p.text.strip() for p in details.find_all('tr')]
+        
+       
+        result = f"\033[1;34mПогода в {city.capitalize()}:\033[0m\n"
+        result += f"\033[1;36m{temperature}\033[0m\n"
+        result += f"{description}\n\n"
+        result += "\033[1;34mДеталі:\033[0m\n"
+        result += "\n".join(params)
+        
+        return result
+        
+    except Exception as e:
+        return f"\033[1;31mПомилка: {str(e)}\033[0m"
 
 def main():
- 
+    """Головна функція"""
+  
+    check_update()
+    
+    
     COLORS = {
         'header': '\033[1;34m',
         'success': '\033[1;32m',
-        'error': '\033[1;31m',
-        'warning': '\033[1;33m',
         'reset': '\033[0m'
     }
     
-    
+ 
     os.system('clear')
     
-
-    print(f"{COLORS['header']}=== Погодний скрипт для Termux ==={COLORS['reset']}")
-    print(f"{COLORS['header']}(Дані з wttr.in){COLORS['reset']}\n")
-    
- 
-    try:
-        requests.get('http://google.com', timeout=5)
-    except requests.ConnectionError:
-        print(f"{COLORS['error']}Помилка: Немає інтернет-з'єднання!{COLORS['reset']}")
-        sys.exit(1)
-    
- 
-    city = input("Введіть назву міста (наприклад Київ): ").strip()
-    
-    if not city:
-        city = "Київ"
-        print(f"\n{COLORS['warning']}Використовується місто за замовчуванням: Київ{COLORS['reset']}")
-    
   
-    encoded_city = quote(city)
+    print(f"{COLORS['header']}=== Швидкий погодний скрипт ==={COLORS['reset']}")
+    print(f"{COLORS['header']}(Дані з sinoptik.ua){COLORS['reset']}\n")
     
-    print(f"\n{COLORS['success']}Завантаження даних для {city}...{COLORS['reset']}\n")
+
+    city = input("Введіть назву міста: ").strip() or "Київ"
     
-    try:
-        
-        url = f"http://wttr.in/{encoded_city}?lang=uk"
-        response = requests.get(url, headers={'User-Agent': 'curl/7.64.1'})
-        
-       
-        if response.status_code == 200:
-            print(response.text)
-        else:
-            print(f"{COLORS['error']}Помилка: Не вдалося отримати дані (код {response.status_code}){COLORS['reset']}")
-            print("Можливі причини:")
-            print("- Неправильна назва міста")
-            print("- Тимчасова недоступність сервісу")
+   
+    print(f"\n{COLORS['success']}Запит даних...{COLORS['reset']}")
+    weather_data = get_weather(city)
     
-    except Exception as e:
-        print(f"\n{COLORS['error']}Критична помилка: {str(e)}{COLORS['reset']}")
+
+    print("\n" + weather_data)
+
+def install_dependencies():
+    """Встановлює необхідні залежності"""
+    print("\033[1;34mВстановлення залежностей...\033[0m")
+    commands = [
+        "pkg update -y",
+        "pkg install python -y",
+        "pip install requests beautifulsoup4"
+    ]
+    
+    for cmd in commands:
+        print(f"\033[1;33mВиконання: {cmd}\033[0m")
+        subprocess.run(cmd, shell=True, check=True)
+    
+    print("\033[1;32mЗалежності встановлено успішно!\033[0m")
 
 if __name__ == "__main__":
-    main()
+
+    try:
+        import requests
+        import bs4
+        main()
+    except ImportError:
+        install_dependencies()
+        main()
