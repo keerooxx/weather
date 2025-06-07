@@ -14,10 +14,13 @@ ukrainian_days = {
     'Sunday': 'Неділя'
 }
 
+
+day_order = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
 def get_weather(city):
     print(colored(f"\nПрогноз погоди для: {city.capitalize()}\n", 'cyan'))
 
-   
+    
     geo_url = f"https://nominatim.openstreetmap.org/search?city={city}&country=Україна&format=json"
     headers = {'User-Agent': 'weather-termux-script'}
     try:
@@ -34,7 +37,7 @@ def get_weather(city):
 
     lat, lon = data[0]['lat'], data[0]['lon']
 
-    
+   
     weather_url = (
         f"https://api.open-meteo.com/v1/forecast"
         f"?latitude={lat}&longitude={lon}"
@@ -55,16 +58,29 @@ def get_weather(city):
     rain = wdata['daily']['precipitation_sum']
 
    
-    table = []
-    for i in reversed(range(len(days))):
+    day_data = []
+    for i in range(len(days)):
         date_obj = datetime.strptime(days[i], "%Y-%m-%d")
         eng_day = date_obj.strftime('%A')
         ukr_day = ukrainian_days.get(eng_day, eng_day)
+        day_data.append({
+            'eng_day': eng_day,
+            'ukr_day': ukr_day,
+            'min_temp': min_temps[i],
+            'max_temp': max_temps[i],
+            'rain': rain[i]
+        })
+
+  
+    day_data_sorted = sorted(day_data, key=lambda x: day_order.index(x['eng_day']))
+
+    table = []
+    for d in day_data_sorted:
         row = [
-            colored(ukr_day, 'yellow'),
-            colored(f"{min_temps[i]:.1f}°C", 'blue'),
-            colored(f"{max_temps[i]:.1f}°C", 'red'),
-            colored(f"{rain[i]:.1f} мм", 'green')
+            colored(d['ukr_day'], 'yellow'),
+            colored(f"{d['min_temp']:.1f}°C", 'blue'),
+            colored(f"{d['max_temp']:.1f}°C", 'red'),
+            colored(f"{d['rain']:.1f} мм", 'green')
         ]
         table.append(row)
 
@@ -82,23 +98,18 @@ def get_weather(city):
 def main():
     print(colored("\n=== Прогноз погоди ===", 'magenta', attrs=['bold']))
     while True:
-        city = input("\nВведіть назву міста українською (або 'вихід' для завершення): ").strip()
-        if city.lower() in ['вихід', 'exit', 'quit']:
-            print(colored("Дякую, до побачення!", 'cyan'))
-            break
+        city = input("\nВведіть назву міста українською: ").strip()
         if not city:
             print(colored("Назва міста не може бути порожньою.", 'red'))
             continue
         success = get_weather(city)
         if success:
-            
             again = input("\nБажаєте подивитись погоду для іншого міста? (так/ні): ").strip().lower()
             if again not in ['так', 'yes', 'y']:
                 print(colored("Дякую, до побачення!", 'cyan'))
                 break
         else:
             print(colored("Спробуйте ввести місто ще раз.", 'yellow'))
-
 
 if __name__ == '__main__':
     main()
